@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="e774dd5f-2d71-476a-8571-af1e3641e1cd" name="thinklab">
+        <fileTransfer rootFolder="/mnt/nas/home/guojinpei/satnet-rules" accessType="SFTP" host="202.120.39.51" port="53000" sshConfigId="484d9835-b39c-474e-873f-ba04a75d5a23" sshConfig="guojinpei@202.120.39.51:53000 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="4407f887-87d6-48d6-b5dc-c3f38e6c8fae" name="mila">
+        <fileTransfer rootFolder="/home/mila/l/luo.ziyan/satnet-rules" accessType="SFTP" host="login.mila.quebec" port="2222" sshConfigId="b1f7bef3-a836-46c5-badd-d9ce25418cb3" sshConfig="luo.ziyan@login.mila.quebec:2222 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

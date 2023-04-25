@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="PASSWORD" connectionConfig="{&quot;serverAliveInterval&quot;:300}" host="202.120.39.51" id="484d9835-b39c-474e-873f-ba04a75d5a23" port="53000" nameFormat="DESCRIPTIVE" username="guojinpei" useOpenSSHConfig="true" />
+      <sshConfig authType="PASSWORD" host="202.120.39.51" id="7e920465-849f-455d-956a-3ca433a454d7" port="54000" nameFormat="DESCRIPTIVE" username="guojinpei" useOpenSSHConfig="true" />
+      <sshConfig host="login.mila.quebec" id="b1f7bef3-a836-46c5-badd-d9ce25418cb3" keyPath="C:\Users\DELL\.ssh\id_ed25519" port="2222" nameFormat="DESCRIPTIVE" username="luo.ziyan" useOpenSSHConfig="true" />
+    </configs>
+  </component>
+</project>
