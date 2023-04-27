@@ -12,14 +12,14 @@ import csv
 import numpy as np
 import numpy.random as npr
 # import setproctitle
-
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from tqdm.auto import tqdm
-
+from torch.optim.lr_scheduler import StepLR
 # from torch.profiler import profile, record_function, ProfilerActivity
 
 import satnet
@@ -27,23 +27,12 @@ import mixnet
 import ast
 
 
-class SudokuSolver(nn.Module):
-    def __init__(self, boardSz, model, aux=0, m=0):
-        super(SudokuSolver, self).__init__()
-        n = boardSz ** 6
-        if model == 'satnet':
-            self.model = satnet.SATNet(n, m, aux)
-        else:
-            self.model = mixnet.MixNet(n, aux=aux)
-
-    # def get_C(self):
-    #     x = self.sat.S
-    #     out = torch.matmul(x, x.t())
-    #     return out
-
-    def forward(self, y_in, mask):
-        out = self.model(y_in, mask)
-        return out
+def SudokuSolver(boardSz, model, aux=0, m=0):
+    n = boardSz ** 6
+    if model == 'satnet':
+        return satnet.SATNet(n, m, aux)
+    else:
+        return mixnet.MixNet(n, aux=aux)
 
 
 class DigitConv(nn.Module):
@@ -265,9 +254,11 @@ def main():
     parser.add_argument('--testBatchSz', type=int, default=40)
     parser.add_argument('--aux', type=int, default=0)
     parser.add_argument('--m', type=int, default=600)
-    parser.add_argument('--nEpoch', type=int, default=500)
+    parser.add_argument('--nEpoch', type=int, default=100)
     parser.add_argument('--testPct', type=float, default=0.1)
     parser.add_argument('--lr', type=float, default=2e-3)
+    parser.add_argument('--lr_step_size', type=int, default=20, help='Learning rate step size')
+    parser.add_argument('--lr_factor', type=float, default=0.1, help='Learning rate factor')
     parser.add_argument('--save', type=str)
     parser.add_argument('--no_cuda', action='store_true') # , default=True
     parser.add_argument('--mnist', action='store_true')
@@ -280,6 +271,11 @@ def main():
     # For debugging: fix the random seed
     # npr.seed(1)
     # torch.manual_seed(7)
+    torch.manual_seed(1)
+    torch.cuda.manual_seed(1)
+    torch.cuda.manual_seed_all(1)
+    np.random.seed(1)
+    random.seed(1)
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     if args.cuda:
@@ -392,6 +388,8 @@ def main():
     else:
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
+    scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_factor)
+
     # if args.model:
     #     model.load_state_dict(torch.load(args.model))
     #     # C = model.get_C()
@@ -414,12 +412,25 @@ def main():
     log_file = os.path.join(save, f'{cur_time}.txt')
 
     # test(args.boardSz, 0, model, optimizer, test_logger, test_set, args.testBatchSz, unperm, log_file)
+    
+    old_C = model.C.data.clone()
+    # print(old_C)
     for epoch in range(1, args.nEpoch+1):
-        train(args.boardSz, epoch, model, optimizer, train_logger, train_set, args.batchSz, unperm, log_file)
-        test(args.boardSz, epoch, model, optimizer, test_logger, test_set, args.testBatchSz, unperm, log_file)
-        torch.save(model.state_dict(), os.path.join(save, 'it'+str(epoch)+'.pth'))
+        train(args.boardSz, epoch, model, optimizer, scheduler, train_logger, train_set, args.batchSz, unperm, log_file)
+        # print(model.C.data)
+        # input()
+        if torch.norm(model.C.data - old_C) < 0.01 and torch.count_nonzero(model.C.data) > model.C.data.numel() / 2:
+            nonzero_idx = torch.nonzero(model.C.data, as_tuple=True)
+            min_v = torch.min(torch.abs(model.C.data[nonzero_idx]))
+            mask = (torch.abs(model.C.data) != min_v)
+            model.C.data = model.C.data * mask
 
-    # torch.save(model.state_dict(), os.path.join(save,'model.pt'))
+        test(args.boardSz, epoch, model, optimizer, scheduler, test_logger, test_set, args.testBatchSz, unperm, log_file)
+        torch.save(model.state_dict(), os.path.join(save, 'it'+str(epoch)+'.pth'))
+        print(torch.norm(model.C.data - old_C))
+        old_C = model.C.data.clone()
+        
+        torch.save(model.state_dict(), os.path.join(save,'model.pt'))
 
 
 '''def process_inputs(X, Ximg, Y, boardSz):
@@ -448,9 +459,9 @@ def process_inputs(X, Y, boardSz):
     return X, Y, is_input
 
 
-def run(boardSz, epoch, model, optimizer, logger, dataset, batchSz, to_train=False, unperm=None, log_file=None):
+def run(boardSz, epoch, model, optimizer, scheduler, logger, dataset, batchSz, to_train=False, unperm=None, log_file=None):
     loss_final, err_final = 0, 0
-    loader = DataLoader(dataset, batch_size=batchSz)
+    loader = DataLoader(dataset, batch_size=batchSz, shuffle=to_train)
     tloader = tqdm(enumerate(loader), total=len(loader))
     abs_err = 0
     for i, (data, is_input, label) in tloader:
@@ -474,6 +485,8 @@ def run(boardSz, epoch, model, optimizer, logger, dataset, batchSz, to_train=Fal
     loss_final, err_final = loss_final/len(loader), err_final/len(loader)
     # logger.log((epoch, loss_final, err_final))
 
+    scheduler.step()
+
     with open(log_file, 'a') as f:
         pre = 'Train' if to_train else 'Test'
         print(f'{pre} epoch:{epoch}, loss={loss_final}, err={err_final}', file=f)
@@ -484,13 +497,13 @@ def run(boardSz, epoch, model, optimizer, logger, dataset, batchSz, to_train=Fal
     torch.cuda.empty_cache()
 
 
-def train(args, epoch, model, optimizer, logger, dataset, batchSz, unperm=None, log_file=None):
-    run(args, epoch, model, optimizer, logger, dataset, batchSz, True, unperm, log_file=log_file)
+def train(args, epoch, model, optimizer, scheduler, logger, dataset, batchSz, unperm=None, log_file=None):
+    run(args, epoch, model, optimizer,scheduler, logger, dataset, batchSz, True, unperm, log_file=log_file)
 
 
 @torch.no_grad()
-def test(args, epoch, model, optimizer, logger, dataset, batchSz, unperm=None, log_file=None):
-    run(args, epoch, model, optimizer, logger, dataset, batchSz, False, unperm, log_file=log_file)
+def test(args, epoch, model, optimizer, scheduler, logger, dataset, batchSz, unperm=None, log_file=None):
+    run(args, epoch, model, optimizer, scheduler, logger, dataset, batchSz, False, unperm, log_file=log_file)
 
 
 @torch.no_grad()
