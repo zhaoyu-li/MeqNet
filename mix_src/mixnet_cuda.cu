@@ -5,7 +5,7 @@
 #include <float.h>
 
 #include <cuda_runtime.h>
-#include "symsatnet.h"
+#include "mixnet.h"
 
 const double MEPS = 1e-24;
 const int WARP_SIZE = 32;
