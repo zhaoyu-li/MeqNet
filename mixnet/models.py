@@ -12,67 +12,66 @@ def get_k(n):
     return int((2 * n) ** 0.5 + 1)
 
 
-class MixingFunc(Function):
-    '''Apply the Mixing method to the input probabilities.
-
-    Args: see MIXNet.
-
-    Impl Note:
-        The MIXNet is a wrapper for the MixingFunc,
-        handling the initialization and the wrapping of auxiliary variables.
-    '''
+class MixingFunc(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, C, z, is_input, max_iter, eps, prox_lam):
-        B, n, k = z.size(0), C.size(0), get_k(C.size(0)) # 32
+        B, n = z.size(0), C.size(0)
+        k = 32 # int((2 * n) ** 0.5 + 3) // (4*4)
         ctx.prox_lam = prox_lam
 
-        device = 'cuda' if C.is_cuda else 'cpu'
-        ctx.g, ctx.gnrm = torch.zeros(B, k, device=device), torch.zeros(B, n, device=device)
-        ctx.index = torch.zeros(B, n, dtype=torch.int, device=device)
-        ctx.is_input = torch.zeros(B, n, dtype=torch.int, device=device)
-        V = torch.zeros(B, n, k, device=device).normal_()
-        ctx.V = V / torch.norm(V, p=2, dim=2, keepdim=True)
-        
-        ctx.z = torch.zeros(B, n, device=device)
-        ctx.niter = torch.zeros(B, dtype=torch.int, device=device)
-        ctx.tmp = torch.zeros(B, n, k, device=device)
+        assert(C.is_cuda)
+        device = 'cuda'
 
-        ctx.C = torch.zeros(n, n, device=device)
-        ctx.Cnrms = torch.zeros(n, device=device)
+        ctx.g, ctx.gnrm = torch.zeros(B,k, device=device), torch.zeros(B,n, device=device)
+        ctx.index = torch.zeros(B,n, dtype=torch.int, device=device)
+        ctx.is_input = torch.zeros(B,n, dtype=torch.int, device=device)
+        ctx.V, ctx.W = torch.zeros(B,n,k, device=device).normal_(), torch.zeros(B,k,n, device=device)
+        ctx.z = torch.zeros(B,n, device=device)
+        ctx.niter = torch.zeros(B, dtype=torch.int, device=device)
+
+        ctx.C = torch.zeros(n,n, device=device)
+        ctx.Cdiags = torch.zeros(n, device=device)
+
         ctx.z[:] = z.data
         ctx.C[:] = C.data
         ctx.is_input[:] = is_input.data
-        
-        perm = torch.randperm(n - 1, dtype=torch.int, device=device)
 
-        mixnet_impl = mixnet._cuda if C.is_cuda else mixnet._cpp
-        mixnet_impl.init(perm, is_input, ctx.index, ctx.z, ctx.V, ctx.tmp)
+        perm = torch.randperm(n-1, dtype=torch.int, device=device)
 
-        ctx.Cnrms[:] = C.norm(dim=1) ** 2
+        satnet_impl = symsatnet._cuda
+        satnet_impl.init(perm, ctx.is_input, ctx.index, ctx.z, ctx.V)
 
-        mixnet_impl.forward(max_iter, eps,
-                            ctx.index, ctx.niter, ctx.C, ctx.z,
-                            ctx.V, ctx.gnrm, ctx.g, ctx.tmp)
+        ctx.W[:] = ctx.V.transpose(1, 2)
+        ctx.Cdiags[:] = torch.diagonal(C)
+
+        satnet_impl.forward(max_iter, eps, 
+                ctx.index, ctx.niter, ctx.C, ctx.z, 
+                ctx.V, ctx.W, ctx.gnrm, ctx.Cdiags, ctx.g)
+
         return ctx.z.clone()
-
+    
     @staticmethod
     def backward(ctx, dz):
-        B, n, k = dz.size(0), ctx.C.size(0), get_k(ctx.C.size(0)) # 32
+        B, n = dz.size(0), ctx.C.size(0)
+        k = 32 # int((2 * n) ** 0.5 + 3) // (4*4)
 
-        device = 'cuda' if ctx.C.is_cuda else 'cpu'
-        ctx.dC = torch.zeros(B, n, n, device=device)
-        ctx.U = torch.zeros(B, n, k, device=device)
-        ctx.dz = torch.zeros(B, n, device=device)
+        assert(ctx.C.is_cuda)
+        device = 'cuda'
+
+        ctx.dC = torch.zeros(B,n,n, device=device)
+        ctx.U, ctx.Phi = torch.zeros(B,n,k, device=device), torch.zeros(B,k,n, device=device)
+        ctx.dz = torch.zeros(B,n, device=device)
 
         ctx.dz[:] = dz.data
-        mixnet_impl = mixnet._cuda if ctx.C.is_cuda else mixnet._cpp
 
-        mixnet_impl.backward(ctx.prox_lam,
-                             ctx.is_input, ctx.index, ctx.niter, ctx.C, ctx.dC, ctx.z, ctx.dz,
-                             ctx.V, ctx.U, ctx.gnrm, ctx.g, ctx.tmp)
+        satnet_impl = symsatnet._cuda
+        satnet_impl.backward(ctx.prox_lam, 
+                ctx.is_input, ctx.index, ctx.niter, ctx.C, ctx.dC, ctx.z, ctx.dz,
+                ctx.V, ctx.U, ctx.W, ctx.Phi, ctx.gnrm, ctx.Cdiags, ctx.g)
 
-        ctx.dC = ctx.dC.sum(dim=0)
+        ctx.dC = ctx.dC.sum(dim = 0)
+
         return ctx.dC, ctx.dz, None, None, None, None
 
 
