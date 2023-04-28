@@ -39,7 +39,7 @@ class MixingFunc(torch.autograd.Function):
 
         perm = torch.randperm(n-1, dtype=torch.int, device=device)
 
-        satnet_impl = symsatnet._cuda
+        satnet_impl = mixnet._cuda
         satnet_impl.init(perm, ctx.is_input, ctx.index, ctx.z, ctx.V)
 
         ctx.W[:] = ctx.V.transpose(1, 2)
@@ -65,7 +65,7 @@ class MixingFunc(torch.autograd.Function):
 
         ctx.dz[:] = dz.data
 
-        satnet_impl = symsatnet._cuda
+        satnet_impl = mixnet._cuda
         satnet_impl.backward(ctx.prox_lam, 
                 ctx.is_input, ctx.index, ctx.niter, ctx.C, ctx.dC, ctx.z, ctx.dz,
                 ctx.V, ctx.U, ctx.W, ctx.Phi, ctx.gnrm, ctx.Cdiags, ctx.g)
