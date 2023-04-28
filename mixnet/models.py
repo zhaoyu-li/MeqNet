@@ -135,8 +135,6 @@ class MixNet(nn.Module):
         super(MixNet, self).__init__()
         self.nvars = n + 1 + aux
         C_t = torch.randn(self.nvars, self.nvars)
-        C_t = C_t + C_t.t() - 1
-        C_t.fill_diagonal_(0)
 
         if weight_normalize: C_t = C_t * ((.5 / (self.nvars * 2)) ** 0.5) # extremely important!
         self.C = nn.Parameter(C_t)
