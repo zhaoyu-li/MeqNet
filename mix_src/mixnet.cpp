@@ -25,7 +25,7 @@
 #define _MIX_EVAL(x,y) _MIX_CAT(x,y)
 #define _MIX_FUNC(name) _MIX_EVAL(name, DEVICE_NAME)
 
-#include "symsatnet.h"
+#include "mixnet.h"
 
 using Tensor=torch::Tensor;
 float *fptr(Tensor& a) { return a.data_ptr<float>(); }
