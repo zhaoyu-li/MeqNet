@@ -14,17 +14,17 @@ gencode = [
         '-gencode=arch=compute_86,code=sm_86',
 ]
 
-ext_modules = [
-    CppExtension(
-        name = 'mixnet._cpp',
-        include_dirs = ['./mix_src'],
-        sources = [
-            'mix_src/mixnet.cpp',
-            'mix_src/mixnet_cpu.cpp',
-        ],
-        extra_compile_args = ['-fopenmp', '-msse4.1', '-Wall', '-g']
-    )
-]
+# ext_modules = [
+#     CppExtension(
+#         name = 'mixnet._cpp',
+#         include_dirs = ['./mix_src'],
+#         sources = [
+#             'mix_src/mixnet.cpp',
+#             'mix_src/mixnet_cpu.cpp',
+#         ],
+#         extra_compile_args = ['-fopenmp', '-msse4.1', '-Wall', '-g']
+#     )
+# ]
 
 if torch.cuda.is_available() and CUDA_HOME is not None:
     extension = CUDAExtension(
