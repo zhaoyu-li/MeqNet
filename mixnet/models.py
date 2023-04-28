@@ -92,11 +92,9 @@ def insert_constants(x, pre, n_pre, app, n_app):
 
 class MixNet(nn.Module):
     '''Apply a MixNet layer to complete the input probabilities.
-
     Args:
         n: Number of input variables.
         aux: Number of auxiliary variables.
-
         max_iter: Maximum number of iterations for solving
             the inner optimization problem.
             Default: 40
@@ -109,21 +107,17 @@ class MixNet(nn.Module):
             Default: 1e-2
         weight_normalize: Set true to perform normlization for init weights.
             Default: True
-
     Inputs: (z, is_input)
         **z** of shape `(batch, n)`:
             Float tensor containing the probabilities (must be in [0,1]).
         **is_input** of shape `(batch, n)`:
             Int tensor indicating which **z** is a input.
-
     Outputs: z
         **z** of shape `(batch, n)`:
             The prediction probabiolities.
-
     Attributes: C
         **S** of shape `(n, n)`:
             The learnable equality matrix containing `n` variables.
-
     Examples:
         >>> mix = mixnet.MixNet(3, aux=5)
         >>> z = torch.randn(2, 3)
@@ -135,6 +129,8 @@ class MixNet(nn.Module):
         super(MixNet, self).__init__()
         self.nvars = n + 1 + aux
         C_t = torch.randn(self.nvars, self.nvars)
+        C_t = C_t + C_t.t() - 1
+        C_t.fill_diagonal_(0)
 
         if weight_normalize: C_t = C_t * ((.5 / (self.nvars * 2)) ** 0.5) # extremely important!
         self.C = nn.Parameter(C_t)
