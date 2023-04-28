@@ -243,7 +243,7 @@ def run(boardSz, epoch, model, optimizer, logger, dataset, batchSz, to_train=Fal
     loss_final, err_final = 0, 0
 
     loader = DataLoader(dataset, batch_size=batchSz)
-    tloader = tqdm(enumerate(loader), total=len(loader))
+    tloader = tqdm(enumerate(loader), total=len(loader), shuffle=to_train)
 
     for i,(data,is_input,label) in tloader:
         if to_train: optimizer.zero_grad()
